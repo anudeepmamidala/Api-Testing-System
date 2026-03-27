@@ -1,9 +1,9 @@
 # React
-frontend/node_modules/
-frontend/build/
+Frontend/frontend/node_modules/
+Frontend/frontend/build/
 
 # Spring Boot
-target/
+ApiDashboard/target/
 
 # Logs
 *.log
