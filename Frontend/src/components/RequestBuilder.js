@@ -1,194 +1,260 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from 'react';
+import { requestAPI, collectionsAPI, savedRequestsAPI } from '../services/api';
+import { ErrorAlert, SuccessAlert } from './common/Alerts';
+import { LoadingSpinner } from './common/Alerts';
 
-function RequestBuilder({ setResponse, selectedRequest, refreshHistory }) {
-  const [url, setUrl] = useState("");
-  const [method, setMethod] = useState("GET");
-  const [body, setBody] = useState("");
+export default function RequestBuilder({ setResponse, onRequestExecuted }) {
+  // State variables
+  const [method, setMethod] = useState('GET');
+  const [url, setUrl] = useState('');
+  const [headers, setHeaders] = useState('{\n  "Content-Type": "application/json"\n}');
+  const [body, setBody] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [collections, setCollections] = useState([]);
+  const [selectedCollectionId, setSelectedCollectionId] = useState('');
+  const [savingRequest, setSavingRequest] = useState(false);
 
-  const [headers, setHeaders] = useState([{ key: "", value: "" }]);
-
+  // Fetch collections on mount
   useEffect(() => {
-    if (selectedRequest) {
-      setUrl(selectedRequest.url);
-      setMethod(selectedRequest.method);
-      setBody(selectedRequest.body || "");
+    fetchCollections();
+  }, []);
 
-      const headerEntries = Object.entries(selectedRequest.headers || {});
-
-      setHeaders(
-        headerEntries.length > 0
-          ? headerEntries.map(([key, value]) => ({ key, value }))
-          : [{ key: "", value: "" }]
-      );
-    }
-  }, [selectedRequest]);
-
-  const handleHeaderChange = (index, field, value) => {
-    const newHeaders = [...headers];
-    newHeaders[index][field] = value;
-    setHeaders(newHeaders);
-  };
-
-  const addHeader = () => {
-    setHeaders([...headers, { key: "", value: "" }]);
-  };
-
-  const removeHeader = (index) => {
-    setHeaders(headers.filter((_, i) => i !== index));
-  };
-
-  const buildHeadersObject = () => {
-    const obj = {};
-    headers.forEach(h => {
-      if (h.key) obj[h.key] = h.value;
-    });
-    return obj;
-  };
-
-  const sendRequest = async () => {
-
-    if (!url) {
-      alert("URL is required");
-      return;
-    }
-
-    if (method === "POST" && url.match(/\/\d+$/)) {
-      alert("POST should be used on base endpoint (e.g., /posts)");
-      return;
-    }
-
-    if (body && method !== "GET" && method !== "DELETE") {
-      try {
-        JSON.parse(body);
-      } catch {
-        alert("Invalid JSON");
-        return;
+  const fetchCollections = async () => {
+    try {
+      const response = await collectionsAPI.getAll();
+      setCollections(response.data || []);
+      // Auto-select first collection if available
+      if (response.data && response.data.length > 0 && !selectedCollectionId) {
+        setSelectedCollectionId(response.data[0].id);
       }
+    } catch (err) {
+      console.log('Could not load collections');
+    }
+  };
+
+  // Handle form submission
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+
+    // Validation
+    if (!url.trim()) {
+      setError('URL is required');
+      return;
     }
 
-    setLoading(true);
+    if (!selectedCollectionId) {
+      setError('Please select a collection first');
+      return;
+    }
 
     try {
-      let finalUrl = url;
-      if (!url.startsWith("http://") && !url.startsWith("https://")) {
-        finalUrl = "http://" + url;
+      setLoading(true);
+
+      // Parse headers (try to parse as JSON)
+      let headerObj = {};
+      try {
+        headerObj = JSON.parse(headers) || {};
+      } catch (err) {
+        setError('Headers must be valid JSON');
+        setLoading(false);
+        return;
       }
 
-      const res = await fetch("http://localhost:8080/api/send", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          url: finalUrl,
+      // Make API call
+      const response = await requestAPI.execute(method, url, headerObj, body || null);
+      
+      setResponse(response.data);
+      setSuccess('Request executed successfully!');
+
+      // Auto-save to collection with response code
+      setSavingRequest(true);
+      try {
+        const requestName = `${method} ${url.substring(url.lastIndexOf('/') + 1) || 'request'}`;
+        const responseCode = response.status || 200; // Use HTTP status code from axios response
+        await savedRequestsAPI.create(
+          requestName,
+          `Auto-saved from dashboard execution`,
           method,
-          headers: buildHeadersObject(),
-          body,
-        }),
-      });
+          url,
+          headerObj,
+          body || null,
+          parseInt(selectedCollectionId),
+          responseCode.toString(), // Store response code as status
+          responseCode
+        );
+        console.log('Request auto-saved to collection with status code:', responseCode);
+      } catch (saveErr) {
+        console.log('Auto-save to collection failed:', saveErr);
+        // Don't fail the main request execution if auto-save fails
+      } finally {
+        setSavingRequest(false);
+      }
 
-      const data = await res.json();
-      setResponse(data);
-      refreshHistory();
-
+      onRequestExecuted?.();
     } catch (err) {
-      setResponse({
-        status: "ERROR",
-        error: err.message,
-        body: ""
-      });
-    }
+      setError(err.response?.data?.message || 'Failed to execute request');
+      setResponse(null);
 
-    setLoading(false);
+      // Auto-save failed request with error response code
+      setSavingRequest(true);
+      try {
+        // Parse headers again for error case
+        let headerObj = {};
+        try {
+          headerObj = JSON.parse(headers) || {};
+        } catch (headerErr) {
+          headerObj = {};
+        }
+        
+        const requestName = `${method} ${url.substring(url.lastIndexOf('/') + 1) || 'request'}`;
+        const responseCode = err.response?.status || 500; // Use error response status
+        await savedRequestsAPI.create(
+          requestName,
+          `Auto-saved from dashboard execution (Failed)`,
+          method,
+          url,
+          headerObj,
+          body || null,
+          parseInt(selectedCollectionId),
+          responseCode.toString(), // Store response code as status
+          responseCode
+        );
+        console.log('Failed request auto-saved to collection with status code:', responseCode);
+      } catch (saveErr) {
+        console.log('Auto-save failed request failed:', saveErr);
+      } finally {
+        setSavingRequest(false);
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div>
-      <h3>Request</h3>
-
-      {/* URL */}
-      <div style={{ marginBottom: "15px" }}>
-        <input
-          placeholder="Enter URL"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          style={{ width: "100%", padding: "8px" }}
-        />
+    <div className="card">
+      <div className="card-header bg-primary text-white">
+        <h5 className="mb-0">Request Builder</h5>
       </div>
+      <div className="card-body">
+        {/* Error and Success alerts */}
+        <ErrorAlert message={error} onClose={() => setError('')} />
+        <SuccessAlert message={success} onClose={() => setSuccess('')} />
 
-      {/* Method */}
-      <div style={{ marginBottom: "15px" }}>
-        <select
-          value={method}
-          onChange={(e) => {
-            setMethod(e.target.value);
-            if (e.target.value === "GET" || e.target.value === "DELETE") {
-              setBody("");
-            }
-          }}
-          style={{ padding: "8px" }}
-        >
-          <option>GET</option>
-          <option>POST</option>
-          <option>PUT</option>
-          <option>DELETE</option>
-          <option>PATCH</option>
-        </select>
-      </div>
+        <form onSubmit={handleSubmit}>
+          {/* Method, Collection and URL row */}
+          <div className="row mb-3">
+            <div className="col-md-2">
+              <label className="form-label">Method</label>
+              <select
+                className="form-select"
+                value={method}
+                onChange={(e) => setMethod(e.target.value)}
+                disabled={loading}
+              >
+                <option value="GET">GET</option>
+                <option value="POST">POST</option>
+                <option value="PUT">PUT</option>
+                <option value="DELETE">DELETE</option>
+                <option value="PATCH">PATCH</option>
+                <option value="HEAD">HEAD</option>
+                <option value="OPTIONS">OPTIONS</option>
+              </select>
+            </div>
 
-      {/* Headers */}
-      <div style={{ marginBottom: "15px" }}>
-        <h4>Headers</h4>
+            <div className="col-md-3">
+              <label className="form-label">Collection</label>
+              <select
+                className="form-select"
+                value={selectedCollectionId}
+                onChange={(e) => setSelectedCollectionId(e.target.value)}
+                disabled={loading || collections.length === 0}
+              >
+                <option value="">-- Select Collection --</option>
+                {collections.map(col => (
+                  <option key={col.id} value={col.id}>{col.name}</option>
+                ))}
+              </select>
+              {collections.length === 0 && (
+                <small className="text-warning">Create a collection first</small>
+              )}
+            </div>
 
-        {headers.map((header, index) => (
-          <div key={index} style={{ display: "flex", marginBottom: "5px" }}>
-            <input
-              placeholder="Key"
-              value={header.key}
-              onChange={(e) =>
-                handleHeaderChange(index, "key", e.target.value)
-              }
-              style={{ padding: "6px", marginRight: "5px" }}
-            />
-            <input
-              placeholder="Value"
-              value={header.value}
-              onChange={(e) =>
-                handleHeaderChange(index, "value", e.target.value)
-              }
-              style={{ padding: "6px", marginRight: "5px" }}
-            />
-            <button onClick={() => removeHeader(index)}>X</button>
+            <div className="col-md-7">
+              <label className="form-label">URL</label>
+              <input
+                type="text"
+                className="form-control"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                placeholder="https://api.example.com/endpoint"
+                disabled={loading}
+              />
+            </div>
           </div>
-        ))}
 
-        <button onClick={addHeader}>+ Add Header</button>
+          {/* Headers section */}
+          <div className="mb-3">
+            <label className="form-label">Headers (JSON)</label>
+            <textarea
+              className="form-control"
+              rows="3"
+              value={headers}
+              onChange={(e) => setHeaders(e.target.value)}
+              placeholder='{"Content-Type": "application/json"}'
+              disabled={loading}
+              style={{ fontFamily: 'monospace' }}
+            />
+            <small className="text-muted">Enter headers as JSON object</small>
+          </div>
+
+          {/* Body section (only for POST/PUT/PATCH) */}
+          {['POST', 'PUT', 'PATCH'].includes(method) && (
+            <div className="mb-3">
+              <label className="form-label">Body (JSON)</label>
+              <textarea
+                className="form-control"
+                rows="4"
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                placeholder='{"key": "value"}'
+                disabled={loading}
+                style={{ fontFamily: 'monospace' }}
+              />
+              <small className="text-muted">Enter request body as JSON</small>
+            </div>
+          )}
+
+          {/* Buttons */}
+          <div className="d-flex gap-2">
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={loading}
+            >
+              {loading ? 'Sending...' : 'Send Request'}
+            </button>
+            <button
+              type="reset"
+              className="btn btn-secondary"
+              disabled={loading}
+              onClick={() => {
+                setUrl('');
+                setBody('');
+                setHeaders('{\n  "Content-Type": "application/json"\n}');
+              }}
+            >
+              Clear
+            </button>
+          </div>
+        </form>
+
+        {/* Loading spinner */}
+        {loading && <LoadingSpinner />}
       </div>
-
-      {/* Body (ONLY for POST/PUT/PATCH) */}
-      {method !== "GET" && method !== "DELETE" && (
-        <div style={{ marginBottom: "15px" }}>
-          <textarea
-            placeholder="Body (JSON)"
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            style={{ width: "100%", height: "120px", padding: "8px" }}
-          />
-        </div>
-      )}
-
-      {/* Send */}
-      <button
-        onClick={sendRequest}
-        style={{ padding: "10px 15px", cursor: "pointer" }}
-      >
-        Send
-      </button>
-
-      {loading && <p>Sending request...</p>}
     </div>
   );
 }
-
-export default RequestBuilder;

@@ -18,3 +18,5 @@ Thumbs.db
 
 # Env
 .env
+ApiDashboard/.env.production
+ApiDashboard/src/main/resources/application-prod.properties

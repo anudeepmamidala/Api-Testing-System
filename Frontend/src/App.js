@@ -1,49 +1,63 @@
-import React, { useState, useEffect } from "react";
-import RequestBuilder from "./components/RequestBuilder";
-import ResponseViewer from "./components/ResponseViewer";
-import History from "./components/History";
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { LoginPage } from './pages/LoginPage';
+import { RegisterPage } from './pages/RegisterPage';
+import { DashboardPage } from './pages/DashboardPage';
+import 'bootstrap/dist/css/bootstrap.min.css';
+import './App.css';
 
-function App() {
-  const [response, setResponse] = useState(null);
-  const [history, setHistory] = useState([]);
-  const [selectedRequest, setSelectedRequest] = useState(null);
+// Protected Route - only show if authenticated
+function ProtectedRoute({ children }) {
+  const { isAuthenticated, loading } = useAuth();
 
-  const fetchHistory = () => {
-    fetch("http://localhost:8080/api/history")
-      .then(res => res.json())
-      .then(data => setHistory(data));
-  };
+  if (loading) {
+    return <div className="d-flex justify-content-center align-items-center" style={{ height: '100vh' }}>
+      <div className="spinner-border" role="status">
+        <span className="visually-hidden">Loading...</span>
+      </div>
+    </div>;
+  }
 
-  useEffect(() => {
-    fetchHistory();
-  }, []);
+  return isAuthenticated ? children : <Navigate to="/login" />;
+}
+
+// Main App component
+function AppRoutes() {
+  const { isAuthenticated } = useAuth();
 
   return (
-    <div style={{ display: "flex", height: "100vh", fontFamily: "Arial" }}>
+    <Routes>
+      {/* Auth routes - redirect to dashboard if already logged in */}
+      <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" /> : <LoginPage />} />
+      <Route path="/register" element={isAuthenticated ? <Navigate to="/dashboard" /> : <RegisterPage />} />
 
-      {/* Sidebar */}
-      <div style={{ width: "20%", borderRight: "1px solid #ccc", padding: "10px", overflowY: "auto" }}>
-        <History history={history} onSelect={setSelectedRequest} />
-      </div>
+      {/* Dashboard - protected route */}
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute>
+            <DashboardPage />
+          </ProtectedRoute>
+        }
+      />
 
-      {/* Main */}
-      <div style={{ width: "80%", display: "flex", flexDirection: "column" }}>
+      {/* Redirect root to dashboard or login */}
+      <Route path="/" element={<Navigate to="/dashboard" />} />
 
-        <div style={{ flex: 1, padding: "15px", borderBottom: "1px solid #ccc" }}>
-          <RequestBuilder
-            setResponse={setResponse}
-            selectedRequest={selectedRequest}
-            refreshHistory={fetchHistory}
-          />
-        </div>
-
-        <div style={{ flex: 1, padding: "15px" }}>
-          <ResponseViewer response={response} />
-        </div>
-
-      </div>
-    </div>
+      {/* Catch all - redirect to dashboard */}
+      <Route path="*" element={<Navigate to="/dashboard" />} />
+    </Routes>
   );
 }
 
-export default App;
+// Main App with provider
+export default function App() {
+  return (
+    <AuthProvider>
+      <Router>
+        <AppRoutes />
+      </Router>
+    </AuthProvider>
+  );
+}
