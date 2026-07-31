@@ -1,108 +1,51 @@
-# 🚀 API Testing System (Spring Boot + React)
+# ProbeAPI — API Testing & Management Platform
 
-## 📌 Overview
+A secure, self-hosted API testing platform (Postman-style) built on Spring Boot, with hardened SSRF protection and per-user data isolation.
 
-A full-stack API testing platform that allows users to send HTTP requests (GET, POST, PUT, DELETE) and view responses in real time. Designed to simplify API testing with an interactive UI and dynamic request handling.
+## Overview
 
----
+ProbeAPI lets authenticated users build, save, and run HTTP requests, organize them into collections, and browse paginated request history — all scoped strictly to their own account.
 
-## ⚙️ Tech Stack
+## Key Features
 
-* **Backend:** Spring Boot (Java)
-* **Frontend:** React.js
-* **Build Tool:** Maven
-* **Communication:** REST APIs
+- **JWT Authentication** — full auth flow (`AuthController`, `JwtService`, `JwtFilter`) securing every endpoint via Spring Security.
+- **SSRF Protection** — a custom `SecurityValidator` resolves the target hostname via DNS and blocks requests to private/internal IP ranges (`10.x`, `172.16–31.x`, `192.168.x`, loopback, link-local, IPv6 equivalents) before any outbound call is made.
+- **Zero-Trust Data Isolation** — every database query is scoped to the authenticated user via JWT claims across 5 relational tables (`User`, `Collection`, `HistoryEntry`, `NamedRequest`, `RequestJob`).
+- **Layered Validation** — request URL format, JSON body syntax, payload size limits, and HTTP method allowlisting are all checked before a request is executed.
+- **REST API** — full CRUD across a 4-layer architecture (Controller → Service → Repository → DB) for templates, collections, and history.
 
----
+## Tech Stack
 
-## ✨ Features
+| Layer | Technologies |
+|---|---|
+| Backend | Java, Spring Boot, Spring Security |
+| Auth | JWT |
+| Database | PostgreSQL / MySQL |
+| Validation | Custom SSRF + request validators |
 
-* Send HTTP requests (GET, POST, PUT, DELETE)
-* Add custom headers dynamically
-* Support for request body and token-based authentication
-* View API responses in real time
-* Request history tracking for reuse
 
----
+**##Architecture**
+<img width="2816" height="1536" alt="Gemini_Generated_Image_c36dvvc36dvvc36d" src="https://github.com/user-attachments/assets/78e413c6-35be-4058-b547-796e8c65c7af" />
 
-## 🧠 How It Works
 
-1. User enters API URL, method, headers, and body in the UI
-2. Frontend sends request data to backend (Spring Boot)
-3. Backend processes request using service layer
-4. External API is called dynamically
-5. Response is returned and displayed in UI
 
----
-
-## 🏗️ Backend Architecture
-
-* **Controller Layer:** Handles incoming requests from frontend
-* **Service Layer:** Contains logic for executing API calls
-* **DTO Layer:** Transfers request/response data between layers
-
----
-
-## 🎨 Frontend Structure
-
-* **RequestBuilder:** Handles user input (URL, method, headers, body)
-* **ResponseViewer:** Displays API response
-* **History:** Stores and shows previous requests
-
----
-
-## ⚠️ Limitations
-
-* Request history is stored in memory (not persistent)
-* No authentication or user management
-* Basic UI (focus on functionality over design)
-
----
-
-## 🚀 Future Improvements
-
-* Add database for persistent history
-* Implement authentication (JWT)
-* Improve UI/UX and response formatting
-* Add response metadata (status code, response time)
-
----
-
-## 🛠️ Setup Instructions
-
-### Backend
-
-```bash
-cd ApiDashboard
-mvn install
-mvn spring-boot:run
+## Project Structure
+ApiDashboard/
+└── src/main/java/com/anudeep/probeapi/
+    ├── controller/    # ApiController, AuthController, HistoryController, StorageController
+    ├── security/      # JwtFilter, JwtService, SecurityConfig
+    ├── validation/     # RequestValidator, SecurityValidator (SSRF)
+    ├── service/        # ApiService, AuthService, HistoryService, StorageService
+    ├── repository/     # Spring Data repositories per entity
+    ├── entity/         # User, Collection, HistoryEntry, NamedRequest, RequestJob
+    └── dto/             # Request/response DTOs
 ```
 
-### Frontend
+## Architecture
 
-```bash
-cd Frontend
-npm install
-npm start
-```
 
----
+Every request passes through JWT auth and claim extraction before reaching the Validation & Security layer, where the SSRF blocker resolves the target hostname via DNS and checks it against private/internal IP ranges. Only requests that pass both SSRF and format/payload validation reach the business logic layer and, ultimately, the external API target. All persistence is scoped to the authenticated user's ID across all 5 tables.
 
-## 📌 Key Learning Outcomes
+## License
 
-* Built a full-stack application using Spring Boot and React
-* Implemented dynamic API request handling
-* Understood layered backend architecture (Controller-Service-DTO)
-* Gained experience in frontend-backend integration
-
----
-
-## 📷 Screenshots
-
-(Add screenshots here if needed)
-
----
-
-## 👨‍💻 Author
-
-Anudeep Kumar
+MIT
