@@ -30,6 +30,7 @@ ProbeAPI lets authenticated users build, save, and run HTTP requests, organize t
 
 
 ## Project Structure
+
 ApiDashboard/
 └── src/main/java/com/anudeep/probeapi/
     ├── controller/    # ApiController, AuthController, HistoryController, StorageController
@@ -41,10 +42,6 @@ ApiDashboard/
     └── dto/             # Request/response DTOs
 ```
 
-## Architecture
-
-
-Every request passes through JWT auth and claim extraction before reaching the Validation & Security layer, where the SSRF blocker resolves the target hostname via DNS and checks it against private/internal IP ranges. Only requests that pass both SSRF and format/payload validation reach the business logic layer and, ultimately, the external API target. All persistence is scoped to the authenticated user's ID across all 5 tables.
 
 ## License
 
