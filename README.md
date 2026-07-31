@@ -30,16 +30,26 @@ ProbeAPI lets authenticated users build, save, and run HTTP requests, organize t
 
 
 ## Project Structure
+## Project Structure
 
+```text
 ApiDashboard/
-└── src/main/java/com/anudeep/probeapi/
-    ├── controller/    # ApiController, AuthController, HistoryController, StorageController
-    ├── security/      # JwtFilter, JwtService, SecurityConfig
-    ├── validation/     # RequestValidator, SecurityValidator (SSRF)
-    ├── service/        # ApiService, AuthService, HistoryService, StorageService
-    ├── repository/     # Spring Data repositories per entity
-    ├── entity/         # User, Collection, HistoryEntry, NamedRequest, RequestJob
-    └── dto/             # Request/response DTOs
+├── src/main/java/com/anudeep/probeapi/
+│   ├── controller/
+│   │   ├── ApiController.java
+│   │   ├── AuthController.java
+│   │   └── HistoryController.java
+│   ├── security/
+│   │   ├── JwtFilter.java
+│   │   ├── JwtService.java
+│   │   └── SecurityConfig.java
+│   ├── validation/
+│   │   ├── RequestValidator.java
+│   │   └── SecurityValidator.java
+│   ├── service/
+│   ├── repository/
+│   ├── entity/
+│   └── dto/
 ```
 
 
