@@ -25,11 +25,9 @@ ProbeAPI lets authenticated users build, save, and run HTTP requests, organize t
 
 
 ## Architecture
-<img width="2816" height="1536" alt="Gemini_Generated_Image_c36dvvc36dvvc36d" src="https://github.com/user-attachments/assets/78e413c6-35be-4058-b547-796e8c65c7af" />
+![Uploading Probeapi-architecture.png…]()
 
 
-
-## Project Structure
 ## Project Structure
 
 ```text
